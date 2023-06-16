@@ -2,9 +2,9 @@
 Configuration file for dataset paths
 """
 
-root_dir = "./dataset"
-save_dir = "./saved_models"
-video_result_dir = "./video_results"
+root_dir = "data"
+save_dir = "models/FgSegNet 2.0"
+video_result_dir = "./results"
 
 # Path to Cd2014 images
 fr_dir = f"{root_dir}/CDnet2014_dataset/{{cat}}/{{vid}}/input"
