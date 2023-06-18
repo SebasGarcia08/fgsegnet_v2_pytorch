@@ -5,8 +5,9 @@ Neural Network Blocks
 import torch
 import torch.nn as nn
 
+
 class SegNetDown(nn.Module):
-    """ Encoder blocks of SegNet
+    """Encoder blocks of SegNet
 
     Args:
         in_ch (int): Number of input channels for each conv layer
@@ -18,8 +19,18 @@ class SegNetDown(nn.Module):
         dropout (booelan): Whether to apply spatial dropout at the end
         maxpool (booelan): Whether to apply max pool in the beginning
     """
-    def __init__(self, in_ch, out_ch, num_rep, batch_norm=False , activation=nn.ReLU(), kernel_size=3,
-                 dropout=False, maxpool=False):
+
+    def __init__(
+        self,
+        in_ch,
+        out_ch,
+        num_rep,
+        batch_norm=False,
+        activation=nn.ReLU(),
+        kernel_size=3,
+        dropout=False,
+        maxpool=False,
+    ):
         super().__init__()
         self.down_block = nn.Sequential()
 
@@ -27,11 +38,18 @@ class SegNetDown(nn.Module):
             self.down_block.add_module("maxpool", nn.MaxPool2d(2))
         in_ch_for_conv = in_ch
         for k in range(num_rep):
-            self.down_block.add_module("conv%d"%(k+1), nn.Conv2d(in_ch_for_conv, out_ch,
-                                                        kernel_size=kernel_size, padding=(int((kernel_size-1)/2))))
-            self.down_block.add_module("act%d"%(k+1), activation)
+            self.down_block.add_module(
+                "conv%d" % (k + 1),
+                nn.Conv2d(
+                    in_ch_for_conv,
+                    out_ch,
+                    kernel_size=kernel_size,
+                    padding=(int((kernel_size - 1) / 2)),
+                ),
+            )
+            self.down_block.add_module("act%d" % (k + 1), activation)
             if batch_norm:
-                self.down_block.add_module("bn%d"%(k+1), nn.BatchNorm2d(out_ch))
+                self.down_block.add_module("bn%d" % (k + 1), nn.BatchNorm2d(out_ch))
             in_ch_for_conv = out_ch
         if dropout:
             self.down_block.add_module("dropout", nn.Dropout2d(p=0.5))
@@ -39,8 +57,9 @@ class SegNetDown(nn.Module):
     def forward(self, inp):
         return self.down_block(inp)
 
+
 class SegNetUp(nn.Module):
-    """ Decoder blocks of UNet
+    """Decoder blocks of UNet
 
     Args:
         in_ch (int): Number of input channels for each conv layer
@@ -53,27 +72,41 @@ class SegNetUp(nn.Module):
         dropout (booelan): Whether to apply spatial dropout at the end
     """
 
-    def __init__(self, in_ch, res_ch, out_ch, inst_norm=False, activation=nn.ReLU(),
-                 kernel_size=3):
-
+    def __init__(
+        self,
+        in_ch,
+        res_ch,
+        out_ch,
+        inst_norm=False,
+        activation=nn.ReLU(),
+        kernel_size=3,
+    ):
         super().__init__()
         self.up = nn.Sequential()
         self.conv_block = nn.Sequential()
         self.conv1d_block = nn.Sequential()
 
         if res_ch is not None:
-            self.conv1d_block.add_module("conv1d", nn.Conv1d(res_ch, out_ch, kernel_size=(1, 1)))
+            self.conv1d_block.add_module(
+                "conv1d", nn.Conv1d(res_ch, out_ch, kernel_size=(1))
+            )
 
-        self.up.add_module("Upsampling", nn.Upsample(scale_factor=2, mode='nearest'))
+        self.up.add_module("Upsampling", nn.Upsample(scale_factor=2, mode="nearest"))
 
-        self.conv_block.add_module("conv2d", nn.Conv2d(in_ch, out_ch,
-                                                       kernel_size=kernel_size, padding=(int((kernel_size-1)/2))))
+        self.conv_block.add_module(
+            "conv2d",
+            nn.Conv2d(
+                in_ch,
+                out_ch,
+                kernel_size=kernel_size,
+                padding=(int((kernel_size - 1) / 2)),
+            ),
+        )
 
         if inst_norm:
             self.conv_block.add_module("inst_norm", nn.InstanceNorm2d(out_ch))
 
         self.conv_block.add_module("act", activation)
-
 
     def forward(self, inp, res=None, conv1d=False, upSampling=False):
         """
@@ -83,10 +116,16 @@ class SegNetUp(nn.Module):
         """
         feat = self.conv_block(inp)
         if res is None:
-            merged =feat
+            merged = feat
         else:
             if conv1d is True:
+                # Reshape from (batch, in_ch, h, w) to (batch, in_ch, h*w)
+                # In order to avoid this error:
+                # RuntimeError: Expected 2D (unbatched) or 3D (batched) input to conv1d, but got input of size: [4, 128, 160, 120]
+                batch, in_ch, h, w = res.shape
+                res = res.view(batch, in_ch, h * w)
                 x = self.conv1d_block(res)
+                x = x.view(batch, self.conv1d_block.conv1d.out_channels, h, w)
             else:
                 x = res
 
@@ -94,7 +133,11 @@ class SegNetUp(nn.Module):
             feat_scaled_tensor = []
             avg_feat_tensor = torch.mean(x.view(x.size(0), x.size(1), -1), dim=2)
             for idx, avg_feat in enumerate(avg_feat_tensor):
-                feat_scaled_tensor.append((torch.unsqueeze(feat[idx], 0).permute(0, 2, 3, 1) * avg_feat).permute(0, 3, 1, 2))
+                feat_scaled_tensor.append(
+                    (
+                        torch.unsqueeze(feat[idx], 0).permute(0, 2, 3, 1) * avg_feat
+                    ).permute(0, 3, 1, 2)
+                )
 
             # Adding feature map by scaled one
             feat_scaled_tensor = torch.cat(feat_scaled_tensor, dim=0)
@@ -106,45 +149,74 @@ class SegNetUp(nn.Module):
             output = merged
         return output
 
-class M_FPM(nn.Module):
-    """
 
-    """
+class M_FPM(nn.Module):
+    """ """
+
     def __init__(self, in_ch, out_ch, kernel_size):
         super().__init__()
 
         in_ch_for_conv = in_ch
         self.fpm_block_1 = nn.Sequential()
-        #self.fpm_block_1.add_module("zero pad", nn.ZeroPad2d((0, 1, 0, 1)))
-        #self.fpm_block_1.add_module("pool", nn.MaxPool2d(kernel_size=(2,2), stride=(1, 1)))
-        self.fpm_block_1.add_module("conv2d", nn.Conv2d(in_ch_for_conv, out_ch,
-                                                        kernel_size=(1, 1)))
+        # self.fpm_block_1.add_module("zero pad", nn.ZeroPad2d((0, 1, 0, 1)))
+        # self.fpm_block_1.add_module("pool", nn.MaxPool2d(kernel_size=(2,2), stride=(1, 1)))
+        self.fpm_block_1.add_module(
+            "conv2d", nn.Conv2d(in_ch_for_conv, out_ch, kernel_size=(1, 1))
+        )
 
         self.fpm_block_2 = nn.Sequential()
-        self.fpm_block_2.add_module("conv2d", nn.Conv2d(in_ch_for_conv, out_ch,
-                                                        kernel_size=kernel_size, padding=(int((kernel_size - 1)/2))))
+        self.fpm_block_2.add_module(
+            "conv2d",
+            nn.Conv2d(
+                in_ch_for_conv,
+                out_ch,
+                kernel_size=kernel_size,
+                padding=(int((kernel_size - 1) / 2)),
+            ),
+        )
 
         in_ch_for_conv = in_ch + out_ch
         dilation = 4
         self.fpm_block_3 = nn.Sequential()
         self.fpm_block_3.add_module("act", nn.ReLU())
-        self.fpm_block_3.add_module("conv2d", nn.Conv2d(in_ch_for_conv, out_ch,
-                                                        kernel_size=kernel_size, dilation=dilation,
-                                                        padding=dilation))
+        self.fpm_block_3.add_module(
+            "conv2d",
+            nn.Conv2d(
+                in_ch_for_conv,
+                out_ch,
+                kernel_size=kernel_size,
+                dilation=dilation,
+                padding=dilation,
+            ),
+        )
         in_ch_for_conv = in_ch + out_ch
         dilation = 8
         self.fpm_block_4 = nn.Sequential()
         self.fpm_block_4.add_module("act", nn.ReLU())
-        self.fpm_block_4.add_module("conv2d", nn.Conv2d(in_ch_for_conv, out_ch,
-                                                        kernel_size=kernel_size, dilation=dilation,
-                                                        padding=dilation))
+        self.fpm_block_4.add_module(
+            "conv2d",
+            nn.Conv2d(
+                in_ch_for_conv,
+                out_ch,
+                kernel_size=kernel_size,
+                dilation=dilation,
+                padding=dilation,
+            ),
+        )
         in_ch_for_conv = in_ch + out_ch
         dilation = 16
         self.fpm_block_5 = nn.Sequential()
         self.fpm_block_5.add_module("act", nn.ReLU())
-        self.fpm_block_5.add_module("conv2d", nn.Conv2d(in_ch_for_conv, out_ch,
-                                                        kernel_size=kernel_size, dilation=dilation,
-                                                        padding=dilation))
+        self.fpm_block_5.add_module(
+            "conv2d",
+            nn.Conv2d(
+                in_ch_for_conv,
+                out_ch,
+                kernel_size=kernel_size,
+                dilation=dilation,
+                padding=dilation,
+            ),
+        )
 
         self.fpm_out_block = nn.Sequential()
         self.fpm_out_block.add_module("inst_norm", nn.InstanceNorm2d(in_ch))
@@ -171,7 +243,7 @@ class M_FPM(nn.Module):
 
 
 class ConvSig(nn.Module):
-    """ Conv layer + Sigmoid
+    """Conv layer + Sigmoid
 
     Args:
         in_ch (int): Number of input channels

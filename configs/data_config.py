@@ -3,7 +3,7 @@ Configuration file for dataset paths
 """
 
 root_dir = "data"
-save_dir = "models/FgSegNet 2.0"
+save_dir = "models"
 video_result_dir = "./results"
 
 # Path to Cd2014 images

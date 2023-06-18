@@ -4,17 +4,19 @@ from collections import OrderedDict
 import collections
 from models.model_tools import SegNetDown, SegNetUp, M_FPM, ConvSig
 
+
 class FgSegNet(nn.Module):
     """
     Args:
     """
+
     @staticmethod
     def weight_init(m):
         if isinstance(m, nn.Conv2d):
-            nn.init.kaiming_normal_(m.weight.data, nonlinearity='relu')
+            nn.init.kaiming_normal_(m.weight.data, nonlinearity="relu")
             nn.init.constant_(m.bias.data, 0)
         elif isinstance(m, nn.Linear):
-            nn.init.xavier_normal_(m.weight.data, gain=nn.init.calculate_gain('relu'))
+            nn.init.xavier_normal_(m.weight.data, gain=nn.init.calculate_gain("relu"))
             nn.init.constant_(m.bias.data, 0)
 
     def __init__(self, inp_ch, kernel_size=3):
@@ -22,26 +24,63 @@ class FgSegNet(nn.Module):
         self.model = nn.Sequential()
 
         # VGG16
-        self.enc1 = SegNetDown(inp_ch, 64, 2, batch_norm=False, kernel_size=kernel_size, maxpool=False, dropout=False)
-        self.enc2 = SegNetDown(64, 128, 2, batch_norm=False, kernel_size=kernel_size, maxpool=True, dropout=False)
-        self.enc3 = SegNetDown(128, 256, 3, batch_norm=False, kernel_size=kernel_size, maxpool=True, dropout=False)
-        self.enc4 = SegNetDown(256, 512, 3, batch_norm=False, kernel_size=kernel_size, maxpool=False, dropout=False)
+        self.enc1 = SegNetDown(
+            inp_ch,
+            64,
+            2,
+            batch_norm=False,
+            kernel_size=kernel_size,
+            maxpool=False,
+            dropout=False,
+        )
+        self.enc2 = SegNetDown(
+            64,
+            128,
+            2,
+            batch_norm=False,
+            kernel_size=kernel_size,
+            maxpool=True,
+            dropout=False,
+        )
+        self.enc3 = SegNetDown(
+            128,
+            256,
+            3,
+            batch_norm=False,
+            kernel_size=kernel_size,
+            maxpool=True,
+            dropout=False,
+        )
+        self.enc4 = SegNetDown(
+            256,
+            512,
+            3,
+            batch_norm=False,
+            kernel_size=kernel_size,
+            maxpool=False,
+            dropout=False,
+        )
 
         # FPM module
         self.fpm = M_FPM(512, 64, kernel_size=kernel_size)
 
         # Decoder
-        self.dec3 = SegNetUp(in_ch=320, res_ch=64, out_ch=64, inst_norm=True, kernel_size=kernel_size)
-        self.dec2 = SegNetUp(in_ch=64, res_ch=128, out_ch=64, inst_norm=True, kernel_size=kernel_size)
-        self.dec1 = SegNetUp(in_ch=64, res_ch=None, out_ch=64, inst_norm=True, kernel_size=kernel_size)
+        self.dec3 = SegNetUp(
+            in_ch=320, res_ch=64, out_ch=64, inst_norm=True, kernel_size=kernel_size
+        )
+        self.dec2 = SegNetUp(
+            in_ch=64, res_ch=128, out_ch=64, inst_norm=True, kernel_size=kernel_size
+        )
+        self.dec1 = SegNetUp(
+            in_ch=64, res_ch=None, out_ch=64, inst_norm=True, kernel_size=kernel_size
+        )
         self.out = ConvSig(64)
 
         self.frozenLayers = [self.enc1, self.enc2, self.enc3]
         self.apply(self.weight_init)
 
     def forward(self, inp):
-        """
-        """
+        """ """
         # Encoder
         e1 = self.enc1(inp)
         e2 = self.enc2(e1)
@@ -59,6 +98,3 @@ class FgSegNet(nn.Module):
         # Classifier
         cd_out = self.out(d1)
         return cd_out
-
-
-
